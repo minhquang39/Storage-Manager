@@ -57,7 +57,7 @@ WINDOW_HEIGHT = 700
 PREVIEW_IMAGE_SIZE = (200, 200)
 
 # Hash algorithm
-HASH_ALGORITHM = 'sha256'  # More secure than MD5
+HASH_ALGORITHM = 'md5'  # Fast and sufficient for duplicate detection
 
 # File extensions for preview
 IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.ico', '.tiff', '.webp'}

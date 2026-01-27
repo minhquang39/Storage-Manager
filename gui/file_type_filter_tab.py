@@ -1,5 +1,5 @@
 """
-GUI tab for file size filter
+GUI tab for file type filter
 """
 
 import tkinter as tk
@@ -9,18 +9,20 @@ from datetime import datetime
 from send2trash import send2trash
 import os
 
+from core.file_type_filter import FileTypeFilter
 from core.size_filter import SizeFilter
 
 
-class SizeFilterTab(ttk.Frame):
-    """Tab for finding and managing files by size"""
+class FileTypeFilterTab(ttk.Frame):
+    """Tab for finding and managing files by type/extension"""
     
     def __init__(self, parent):
         super().__init__(parent)
-        self.size_filter = SizeFilter(self.update_progress)
+        self.file_type_filter = FileTypeFilter(self.update_progress)
         self.selected_directories = []
         self.matched_files = []
         self.scanning = False
+        self.group_vars = {}  # Store checkbox variables for each group
         
         self.create_widgets()
         
@@ -48,40 +50,52 @@ class SizeFilterTab(ttk.Frame):
         self.dir_listbox = tk.Listbox(top_frame, height=3)
         self.dir_listbox.pack(fill=tk.BOTH, expand=True, pady=5)
         
-        # Size filter options
-        options_frame = ttk.LabelFrame(self, text="Tùy Chọn Lọc", padding=10)
+        # File type filter options
+        options_frame = ttk.LabelFrame(self, text="Chọn Loại File", padding=10)
         options_frame.pack(fill=tk.X, padx=10, pady=5)
         
-        # Condition row
-        condition_frame = ttk.Frame(options_frame)
-        condition_frame.pack(fill=tk.X, pady=5)
+        # Create checkboxes for each file type group
+        groups_container = ttk.Frame(options_frame)
+        groups_container.pack(fill=tk.BOTH, expand=True, pady=5)
         
-        ttk.Label(condition_frame, text="Tìm file:").pack(side=tk.LEFT, padx=5)
+        # Split into two columns for better layout
+        left_col = ttk.Frame(groups_container)
+        left_col.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5)
         
-        self.condition_var = tk.StringVar(value="larger_than")
-        conditions = [
-            ("Lớn hơn", "larger_than"),
-            ("Nhỏ hơn", "smaller_than"),
-        ]
-        for text, value in conditions:
-            ttk.Radiobutton(condition_frame, text=text, 
-                          variable=self.condition_var, 
-                          value=value).pack(side=tk.LEFT, padx=5)
+        right_col = ttk.Frame(groups_container)
+        right_col.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5)
         
-        # Size input row
-        size_frame = ttk.Frame(options_frame)
-        size_frame.pack(fill=tk.X, pady=5)
+        # Get group info and create checkboxes
+        groups = FileTypeFilter.FILE_TYPE_GROUPS
+        group_items = list(groups.items())
+        mid_point = (len(group_items) + 1) // 2
         
-        ttk.Label(size_frame, text="Kích thước:").pack(side=tk.LEFT, padx=5)
-        self.size_value_var = tk.StringVar(value="100")
-        ttk.Entry(size_frame, textvariable=self.size_value_var, 
-                 width=15).pack(side=tk.LEFT, padx=5)
-        
-        self.size_unit_var = tk.StringVar(value="MB")
-        units = ["B", "KB", "MB", "GB"]
-        ttk.Combobox(size_frame, textvariable=self.size_unit_var, 
-                    values=units, state='readonly', 
-                    width=5).pack(side=tk.LEFT, padx=5)
+        for idx, (group_key, group_data) in enumerate(group_items):
+            container = left_col if idx < mid_point else right_col
+            
+            var = tk.BooleanVar(value=False)
+            self.group_vars[group_key] = var
+            
+            # Create frame for each group
+            group_frame = ttk.Frame(container)
+            group_frame.pack(fill=tk.X, pady=2)
+            
+            # Checkbox
+            cb = ttk.Checkbutton(group_frame, 
+                                text=group_data['name'],
+                                variable=var)
+            cb.pack(side=tk.LEFT)
+            
+            # Extension count label
+            ext_count = len(group_data['extensions'])
+            ext_preview = ', '.join(list(group_data['extensions'])[:3])
+            if ext_count > 3:
+                ext_preview += f', ... (+{ext_count - 3})'
+            
+            tooltip = ttk.Label(group_frame, 
+                              text=f"({ext_count} loại: {ext_preview})",
+                              foreground='gray')
+            tooltip.pack(side=tk.LEFT, padx=5)
         
         # Scan button
         self.scan_btn = ttk.Button(options_frame, text="Bắt Đầu Quét", 
@@ -108,38 +122,40 @@ class SizeFilterTab(ttk.Frame):
         
         # File list with checkboxes
         list_frame = ttk.Frame(results_frame)
-        list_frame.pack(fill=tk.BOTH, expand=True, pady=5)
+        list_frame.pack(fill=tk.BOTH, expand=True)
         
         scrollbar = ttk.Scrollbar(list_frame)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
         self.file_tree = ttk.Treeview(list_frame, 
-                                     columns=('Name', 'Size', 'Modified', 'Path'),
+                                     columns=('Group', 'Name', 'Size', 'Modified', 'Path'),
                                      show='tree headings', 
                                      yscrollcommand=scrollbar.set)
         self.file_tree.heading('#0', text='Chọn')
+        self.file_tree.heading('Group', text='Loại')
         self.file_tree.heading('Name', text='Tên File')
         self.file_tree.heading('Size', text='Kích Thước')
         self.file_tree.heading('Modified', text='Ngày Sửa')
         self.file_tree.heading('Path', text='Đường Dẫn')
         
-        self.file_tree.column('#0', width=60)
-        self.file_tree.column('Name', width=200)
+        self.file_tree.column('#0', width=50)
+        self.file_tree.column('Group', width=120)
+        self.file_tree.column('Name', width=180)
         self.file_tree.column('Size', width=100)
-        self.file_tree.column('Modified', width=150)
-        self.file_tree.column('Path', width=300)
+        self.file_tree.column('Modified', width=130)
+        self.file_tree.column('Path', width=280)
         
         self.file_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.config(command=self.file_tree.yview)
         
-        # Action buttons
+        # Action buttons (always visible at bottom)
         action_frame = ttk.Frame(results_frame)
-        action_frame.pack(fill=tk.X, pady=5)
+        action_frame.pack(fill=tk.X, side=tk.BOTTOM, pady=(5, 0))
         
         ttk.Button(action_frame, text="Chọn Tất Cả", 
-                  command=self.select_all).pack(side=tk.LEFT, padx=5)
+                  command=self.select_all_files).pack(side=tk.LEFT, padx=5)
         ttk.Button(action_frame, text="Bỏ Chọn Tất Cả", 
-                  command=self.deselect_all).pack(side=tk.LEFT, padx=5)
+                  command=self.deselect_all_files).pack(side=tk.LEFT, padx=5)
         
         self.total_label = ttk.Label(action_frame, text="Tổng: 0 file, 0 B")
         self.total_label.pack(side=tk.LEFT, padx=20)
@@ -150,9 +166,6 @@ class SizeFilterTab(ttk.Frame):
         
         # Bind click event for checkboxes
         self.file_tree.bind('<Button-1>', self.on_tree_click)
-        
-        # Bind checkbox toggle to update total
-        self.file_tree.bind('<<TreeviewSelect>>', self.update_selected_total)
     
     def add_directory(self):
         """Add directory to scan list"""
@@ -183,29 +196,28 @@ class SizeFilterTab(ttk.Frame):
         # Get all drives
         drives = FileScanner.get_all_drives()
         
-        # Confirm with user
-        drive_list = ", ".join(drives)
-        result = messagebox.askyesno(
-            "Scan All Drives",
-            f"This will scan all available drives:\n{drive_list}\n\n"
-            f"System folders (Windows, Program Files, AppData) will be automatically excluded.\n\n"
-            f"This may take a long time. Continue?",
-            icon='warning'
-        )
+        # Clear existing and add all drives
+        self.selected_directories.clear()
+        self.dir_listbox.delete(0, tk.END)
         
-        if result:
-            # Clear existing and add all drives
-            self.selected_directories.clear()
-            self.dir_listbox.delete(0, tk.END)
-            
-            for drive in drives:
-                self.selected_directories.append(drive)
-                self.dir_listbox.insert(tk.END, drive)
+        for drive in drives:
+            self.selected_directories.append(drive)
+            self.dir_listbox.insert(tk.END, drive)
     
     def clear_directories(self):
         """Clear all selected directories"""
         self.selected_directories.clear()
         self.dir_listbox.delete(0, tk.END)
+    
+    def select_all_groups(self):
+        """Select all file type groups"""
+        for var in self.group_vars.values():
+            var.set(True)
+    
+    def deselect_all_groups(self):
+        """Deselect all file type groups"""
+        for var in self.group_vars.values():
+            var.set(False)
     
     def update_progress(self, files_count, current_file):
         """Update progress display"""
@@ -214,22 +226,21 @@ class SizeFilterTab(ttk.Frame):
         )
     
     def start_scan(self):
-        """Start scanning for files matching size criteria"""
+        """Start scanning for files matching type criteria"""
         if not self.selected_directories:
-            messagebox.showwarning("Động Lượng Trống", "Vui lòng chọn thư mục để quét")
+            messagebox.showwarning("Chưa Chọn Thư Mục", "Vui lòng chọn thư mục để quét")
             return
         
-        try:
-            size_value = float(self.size_value_var.get())
-            if size_value <= 0:
-                raise ValueError("Size must be positive")
-        except ValueError as e:
-            messagebox.showerror("Đầu Vào Không Hợp Lệ", 
-                               f"Vui lòng nhập số dương hợp lệ cho kích thước")
-            return
+        # Get selected groups
+        selected_groups = {
+            group_key for group_key, var in self.group_vars.items() 
+            if var.get()
+        }
         
-        size_unit = self.size_unit_var.get()
-        condition = self.condition_var.get()
+        if not selected_groups:
+            messagebox.showwarning("Chưa Chọn Loại File", 
+                                 "Vui lòng chọn ít nhất một loại file để quét")
+            return
         
         self.scanning = True
         self.scan_btn.config(state=tk.DISABLED)
@@ -244,19 +255,17 @@ class SizeFilterTab(ttk.Frame):
         # Run scan in separate thread
         thread = threading.Thread(
             target=self.run_scan,
-            args=(condition, size_value, size_unit),
+            args=(selected_groups,),
             daemon=True
         )
         thread.start()
     
-    def run_scan(self, condition, size_value, size_unit):
+    def run_scan(self, selected_groups):
         """Run the scan in background thread"""
         try:
-            self.matched_files = self.size_filter.find_files_by_size(
+            self.matched_files = self.file_type_filter.find_files_by_types(
                 self.selected_directories,
-                condition,
-                size_value,
-                size_unit
+                selected_groups
             )
             self.after(0, self.scan_complete)
         except Exception as e:
@@ -268,15 +277,16 @@ class SizeFilterTab(ttk.Frame):
         self.scan_btn.config(state=tk.NORMAL)
         self.cancel_btn.config(state=tk.DISABLED)
         self.progress_bar.stop()
+        
         if self.matched_files:
             self.display_results()
             total_size = sum(f['size'] for f in self.matched_files)
             size_str = SizeFilter.format_size(total_size)
             self.progress_label.config(
-                text=f"Tìm thấy {len(self.matched_files)} file ({size_str})"
+                text=f"Tìm thấy {len(self.matched_files)} file. Tổng dung lượng: {size_str}"
             )
         else:
-            self.progress_label.config(text="Không tìm thấy file phù hợp")
+            self.progress_label.config(text="Không tìm thấy file nào")
     
     def scan_error(self, error_msg):
         """Handle scan error"""
@@ -289,7 +299,7 @@ class SizeFilterTab(ttk.Frame):
     
     def cancel_scan(self):
         """Cancel ongoing scan"""
-        self.size_filter.cancel()
+        self.file_type_filter.cancel()
         self.scanning = False
         self.scan_btn.config(state=tk.NORMAL)
         self.cancel_btn.config(state=tk.DISABLED)
@@ -302,13 +312,13 @@ class SizeFilterTab(ttk.Frame):
         for item in self.file_tree.get_children():
             self.file_tree.delete(item)
         
-        # Sort by size (descending)
+        # Sort by group then by size
         sorted_files = sorted(self.matched_files, 
-                            key=lambda x: x['size'], 
-                            reverse=True)
+                            key=lambda x: (x.get('group', ''), -x['size']))
         
         # Add files to tree
         for file_info in sorted_files:
+            group = file_info.get('group', '❓ Khác')
             name = file_info['name']
             size_str = SizeFilter.format_size(file_info['size'])
             modified_str = datetime.fromtimestamp(
@@ -318,7 +328,7 @@ class SizeFilterTab(ttk.Frame):
             
             self.file_tree.insert('', tk.END,
                                  text='☐',
-                                 values=(name, size_str, modified_str, path),
+                                 values=(group, name, size_str, modified_str, path),
                                  tags=('unchecked',))
         
         # Update totals
@@ -341,20 +351,16 @@ class SizeFilterTab(ttk.Frame):
         else:
             self.file_tree.item(item, text='☐', tags=('unchecked',))
     
-    def select_all(self):
+    def select_all_files(self):
         """Select all files"""
         for item in self.file_tree.get_children():
             self.file_tree.item(item, text='☑', tags=('checked',))
         self.update_total_display()
     
-    def deselect_all(self):
+    def deselect_all_files(self):
         """Deselect all files"""
         for item in self.file_tree.get_children():
             self.file_tree.item(item, text='☐', tags=('unchecked',))
-        self.update_total_display()
-    
-    def update_selected_total(self, event=None):
-        """Update total for selected files"""
         self.update_total_display()
     
     def update_total_display(self):
@@ -370,7 +376,7 @@ class SizeFilterTab(ttk.Frame):
             if self.file_tree.item(item, 'text') == '☑':
                 selected_count += 1
                 # Find matching file
-                path = self.file_tree.item(item, 'values')[3]
+                path = self.file_tree.item(item, 'values')[4]
                 for f in self.matched_files:
                     if f['path'] == path:
                         selected_size += f['size']
@@ -380,7 +386,8 @@ class SizeFilterTab(ttk.Frame):
         selected_str = SizeFilter.format_size(selected_size)
         
         self.total_label.config(
-            text=f"Tổng: {total_count} file, {total_str} | Chọn: {selected_count} file, {selected_str}"
+            text=f"Tổng: {total_count} file ({total_str}) | "
+                 f"Đã chọn: {selected_count} file ({selected_str})"
         )
     
     def delete_selected(self):
@@ -388,7 +395,7 @@ class SizeFilterTab(ttk.Frame):
         selected_files = []
         for item in self.file_tree.get_children():
             if self.file_tree.item(item, 'text') == '☑':
-                filepath = self.file_tree.item(item, 'values')[3]
+                filepath = self.file_tree.item(item, 'values')[4]
                 selected_files.append(filepath)
         
         if not selected_files:

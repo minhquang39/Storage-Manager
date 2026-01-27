@@ -12,8 +12,9 @@ import os
 # Add the project root to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-# from gui.duplicate_finder_tab import DuplicateFinderTab  # Disabled
+from gui.duplicate_finder_tab import DuplicateFinderTab
 from gui.size_filter_tab import SizeFilterTab
+from gui.file_type_filter_tab import FileTypeFilterTab
 import config
 
 
@@ -23,7 +24,7 @@ class StorageManagerApp(tk.Tk):
     def __init__(self):
         super().__init__()
         
-        self.title("Storage Manager - System-Wide File Scanner")
+        self.title("Storage Manager - Quản lý File Trùng lặp & Kích thước")
         self.geometry(f"{config.WINDOW_WIDTH}x{config.WINDOW_HEIGHT}")
         
         # Set minimum window size
@@ -35,13 +36,21 @@ class StorageManagerApp(tk.Tk):
         # Create menu bar
         self.create_menu()
         
-        # Main content frame (no tabs needed - single feature)
-        main_frame = ttk.Frame(self)
-        main_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        # Create notebook (tab container) for two features
+        self.notebook = ttk.Notebook(self)
+        self.notebook.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
-        # Add Size Filter (main and only feature)
-        self.size_tab = SizeFilterTab(main_frame)
-        self.size_tab.pack(fill=tk.BOTH, expand=True)
+        # Tab 1: Duplicate Finder
+        self.duplicate_tab = DuplicateFinderTab(self.notebook)
+        self.notebook.add(self.duplicate_tab, text="🔍 Tìm File Trùng Lặp")
+        
+        # Tab 2: Size Filter
+        self.size_tab = SizeFilterTab(self.notebook)
+        self.notebook.add(self.size_tab, text="📊 Lọc Theo Kích Thước")
+        
+        # Tab 3: File Type Filter
+        self.file_type_tab = FileTypeFilterTab(self.notebook)
+        self.notebook.add(self.file_type_tab, text="📁 Phân Loại Định Dạng")
         
         # Status bar
         self.create_status_bar()
@@ -146,7 +155,7 @@ Developed with Python and Tkinter
     
     def show_instructions(self):
         """Show instructions dialog"""
-        instructions = """How to Use Storage Manager:
+        instructions = r"""How to Use Storage Manager:
 
 AUTOMATIC SYSTEM SCAN:
 • All drives are loaded automatically (C:\, D:\, etc.)
@@ -183,9 +192,19 @@ SAFETY FEATURES:
     
     def on_closing(self):
         """Handle window closing"""
-        # Cancel any ongoing operations
+        # Cancel any ongoing operations in all tabs
+        try:
+            self.duplicate_tab.cancel_scan()
+        except:
+            pass
+        
         try:
             self.size_tab.cancel_scan()
+        except:
+            pass
+        
+        try:
+            self.file_type_tab.cancel_scan()
         except:
             pass
         
