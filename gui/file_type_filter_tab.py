@@ -424,6 +424,9 @@ class FileTypeFilterTab(ttk.Frame):
             success_count = 0
             
             for filepath in selected_files:
+                # Normalize path to Windows format (convert / to \)
+                filepath = os.path.normpath(filepath)
+                
                 # Check if file still exists
                 if not os.path.exists(filepath):
                     skipped.append(filepath)

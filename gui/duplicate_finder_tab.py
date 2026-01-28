@@ -336,53 +336,49 @@ class DuplicateFinderTab(ttk.Frame):
         for item in self.file_tree.get_children():
             self.file_tree.item(item, text='☐', tags=('unchecked',))
         
-        # Build a mapping of group -> tree items
-        group_items = {}
+        # Build a mapping of path -> tree item for quick lookup
+        path_to_item = {}
         for item in self.file_tree.get_children():
-            group_id = self.file_tree.item(item, 'values')[0]  # Group column
-            if group_id not in group_items:
-                group_items[group_id] = []
-            group_items[group_id].append(item)
+            values = self.file_tree.item(item, 'values')
+            path = values[4]  # Path column
+            path_to_item[path] = item
         
-        # For each group, keep one file based on strategy
-        for group_id, items in group_items.items():
-            if len(items) <= 1:
+        # For each group in duplicate_groups, find the file to keep
+        for hash_value, files in self.duplicate_groups.items():
+            if len(files) <= 1:
                 continue
             
-            # Get file info for all items in this group
-            files_data = []
-            for item in items:
-                values = self.file_tree.item(item, 'values')
-                path = values[4]  # Path column
-                modified = values[3]  # Modified column - datetime string
-                files_data.append((item, path, modified))
-            
-            # Sort by modification time
+            # Sort by modification timestamp
             if strategy == 'newest':
-                files_data.sort(key=lambda x: x[2], reverse=True)  # Keep newest (first)
+                sorted_files = sorted(files, key=lambda x: x['modified'], reverse=True)
             else:
-                files_data.sort(key=lambda x: x[2])  # Keep oldest (first)
+                sorted_files = sorted(files, key=lambda x: x['modified'])
             
-            # Select all except the one to keep (first in sorted list)
-            for item_data in files_data[1:]:
-                item = item_data[0]
-                # Get current tags
-                current_tags = list(self.file_tree.item(item, 'tags'))
-                # Update checkbox and tags
-                self.file_tree.item(item, text='☑')
-                # Keep group tag, change unchecked to checked
-                new_tags = [t if t.startswith('group') else 'checked' for t in current_tags]
-                if 'unchecked' in current_tags:
-                    new_tags.remove('unchecked')
+            # Keep the first one (newest or oldest), select all others
+            keep_file = sorted_files[0]['path']
+            
+            for file_info in sorted_files[1:]:
+                path = file_info['path']
+                if path in path_to_item:
+                    item = path_to_item[path]
+                    # Get current tags
+                    current_tags = list(self.file_tree.item(item, 'tags'))
+                    # Update checkbox
+                    self.file_tree.item(item, text='☑')
+                    # Update tags - keep group tag, set to checked
+                    new_tags = [t for t in current_tags if t.startswith('group')]
                     new_tags.append('checked')
-                self.file_tree.item(item, tags=tuple(new_tags))
+                    self.file_tree.item(item, tags=tuple(new_tags))
     
     def delete_selected(self):
         """Delete selected files"""
         selected_files = []
         for item in self.file_tree.get_children():
             if self.file_tree.item(item, 'text') == '☑':
-                filepath = self.file_tree.item(item, 'values')[4]  # Path is now column 4 (Group, Name, Size, Modified, Path)
+                values = self.file_tree.item(item, 'values')
+                filepath = values[4]  # Path is now column 4 (Group, Name, Size, Modified, Path)
+                print(f"DEBUG: Selected file from tree: {filepath}")
+                print(f"DEBUG: All values: {values}")
                 selected_files.append(filepath)
         
         if not selected_files:
@@ -401,6 +397,13 @@ class DuplicateFinderTab(ttk.Frame):
             success_count = 0
             
             for filepath in selected_files:
+                # Normalize path to Windows format (convert / to \)
+                filepath = os.path.normpath(filepath)
+                
+                # Debug: print the path we're trying to delete
+                print(f"DEBUG: Attempting to delete: {filepath}")
+                print(f"DEBUG: Path exists: {os.path.exists(filepath)}")
+                
                 # Check if file still exists
                 if not os.path.exists(filepath):
                     skipped.append(filepath)
@@ -410,6 +413,7 @@ class DuplicateFinderTab(ttk.Frame):
                     send2trash(filepath)
                     success_count += 1
                 except Exception as e:
+                    print(f"DEBUG: Error deleting {filepath}: {e}")
                     failed.append((filepath, str(e)))
             
             # Build result message
