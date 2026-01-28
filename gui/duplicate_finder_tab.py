@@ -40,6 +40,8 @@ class DuplicateFinderTab(ttk.Frame):
                   command=self.add_directory).pack(side=tk.LEFT, padx=5)
         ttk.Button(btn_frame, text="Quét Tất Cả Ổ", 
                   command=self.scan_all_drives).pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="Xóa Thư Mục", 
+                  command=self.remove_directory).pack(side=tk.LEFT, padx=5)
         ttk.Button(btn_frame, text="Xóa Tất Cả", 
                   command=self.clear_directories).pack(side=tk.LEFT, padx=5)
         
@@ -165,6 +167,19 @@ class DuplicateFinderTab(ttk.Frame):
             for drive in drives:
                 self.selected_directories.append(drive)
                 self.dir_listbox.insert(tk.END, drive)
+    
+    def remove_directory(self):
+        """Remove selected directory from scan list"""
+        selection = self.dir_listbox.curselection()
+        if not selection:
+            messagebox.showinfo("Chưa Chọn", "Vui lòng chọn thư mục để xóa")
+            return
+        
+        # Get selected index
+        index = selection[0]
+        # Remove from list and listbox
+        removed_dir = self.selected_directories.pop(index)
+        self.dir_listbox.delete(index)
     
     def clear_directories(self):
         """Clear all selected directories"""
@@ -377,8 +392,6 @@ class DuplicateFinderTab(ttk.Frame):
             if self.file_tree.item(item, 'text') == '☑':
                 values = self.file_tree.item(item, 'values')
                 filepath = values[4]  # Path is now column 4 (Group, Name, Size, Modified, Path)
-                print(f"DEBUG: Selected file from tree: {filepath}")
-                print(f"DEBUG: All values: {values}")
                 selected_files.append(filepath)
         
         if not selected_files:
@@ -400,10 +413,6 @@ class DuplicateFinderTab(ttk.Frame):
                 # Normalize path to Windows format (convert / to \)
                 filepath = os.path.normpath(filepath)
                 
-                # Debug: print the path we're trying to delete
-                print(f"DEBUG: Attempting to delete: {filepath}")
-                print(f"DEBUG: Path exists: {os.path.exists(filepath)}")
-                
                 # Check if file still exists
                 if not os.path.exists(filepath):
                     skipped.append(filepath)
@@ -413,7 +422,6 @@ class DuplicateFinderTab(ttk.Frame):
                     send2trash(filepath)
                     success_count += 1
                 except Exception as e:
-                    print(f"DEBUG: Error deleting {filepath}: {e}")
                     failed.append((filepath, str(e)))
             
             # Build result message

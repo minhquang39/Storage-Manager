@@ -41,6 +41,8 @@ class SizeFilterTab(ttk.Frame):
                   command=self.add_directory).pack(side=tk.LEFT, padx=5)
         ttk.Button(btn_frame, text="Quét Tất Cả Ổ", 
                   command=self.scan_all_drives).pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="Xóa Thư Mục", 
+                  command=self.remove_directory).pack(side=tk.LEFT, padx=5)
         ttk.Button(btn_frame, text="Xóa Tất Cả", 
                   command=self.clear_directories).pack(side=tk.LEFT, padx=5)
         
@@ -201,6 +203,19 @@ class SizeFilterTab(ttk.Frame):
             for drive in drives:
                 self.selected_directories.append(drive)
                 self.dir_listbox.insert(tk.END, drive)
+    
+    def remove_directory(self):
+        """Remove selected directory from scan list"""
+        selection = self.dir_listbox.curselection()
+        if not selection:
+            messagebox.showinfo("Chưa Chọn", "Vui lòng chọn thư mục để xóa")
+            return
+        
+        # Get selected index
+        index = selection[0]
+        # Remove from list and listbox
+        removed_dir = self.selected_directories.pop(index)
+        self.dir_listbox.delete(index)
     
     def clear_directories(self):
         """Clear all selected directories"""
