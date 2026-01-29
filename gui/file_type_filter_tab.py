@@ -9,6 +9,7 @@ import time
 from datetime import datetime
 from send2trash import send2trash
 import os
+import subprocess
 
 from core.file_type_filter import FileTypeFilter
 from core.size_filter import SizeFilter
@@ -164,6 +165,9 @@ class FileTypeFilterTab(ttk.Frame):
         
         self.file_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.config(command=self.file_tree.yview)
+        
+        # Bind double-click to open in explorer
+        self.file_tree.bind("<Double-Button-1>", self.on_file_double_click)
         
         # Action buttons (always visible at bottom)
         action_frame = ttk.Frame(results_frame)
@@ -356,6 +360,29 @@ class FileTypeFilterTab(ttk.Frame):
         self.cancel_btn.config(state=tk.DISABLED)
         self.progress_bar.stop()
         self.progress_label.config(text="Đã hủy quét")
+    
+    def on_file_double_click(self, event):
+        """Handle double-click on file to open in explorer"""
+        selection = self.file_tree.selection()
+        if not selection:
+            return
+        
+        item = selection[0]
+        values = self.file_tree.item(item, 'values')
+        
+        # Check if it's a file row (has path)
+        if values and len(values) > 4:
+            filepath = values[4]  # Path is in 5th column (index 4)
+            if filepath and os.path.exists(filepath):
+                self.open_in_explorer(filepath)
+    
+    def open_in_explorer(self, filepath):
+        """Open file location in Windows Explorer and select the file"""
+        try:
+            normalized_path = os.path.normpath(filepath)
+            subprocess.run(['explorer', '/select,', normalized_path])
+        except Exception as e:
+            messagebox.showerror("Lỗi", f"Không thể mở file explorer: {e}")
     
     def display_results(self):
         """Display scan results"""
