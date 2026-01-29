@@ -5,9 +5,11 @@ GUI tab for duplicate file finder
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import threading
+import time
+import os
+import string
 from datetime import datetime
 from send2trash import send2trash
-import os
 
 from core.duplicate_finder import DuplicateFinder
 from core.size_filter import SizeFilter
@@ -23,6 +25,8 @@ class DuplicateFinderTab(ttk.Frame):
         self.duplicate_groups = {}
         self.current_group_index = 0
         self.scanning = False
+        self.current_scan_id = 0  # Track scan sessions
+        self.start_time = None  # Track scan start time
         
         self.create_widgets()
     
@@ -30,7 +34,7 @@ class DuplicateFinderTab(ttk.Frame):
         """Create all widgets for this tab"""
         
         # Top section - Directory selection
-        top_frame = ttk.LabelFrame(self, text="Phạm Vi Quét (Tất cả ổ đĩa đã được tải)", padding=10)
+        top_frame = ttk.LabelFrame(self, text="Phạm Vi Quét", padding=10)
         top_frame.pack(fill=tk.X, padx=10, pady=5)
         
         btn_frame = ttk.Frame(top_frame)
@@ -81,7 +85,20 @@ class DuplicateFinderTab(ttk.Frame):
         self.progress_label = ttk.Label(progress_frame, text="Sẵn sàng quét")
         self.progress_label.pack()
         
-        self.progress_bar = ttk.Progressbar(progress_frame, mode='indeterminate')
+        # Create custom style for progress bar
+        style = ttk.Style()
+        style.theme_use('clam')  # Use clam theme for better customization
+        style.configure("Custom.Horizontal.TProgressbar",
+                       troughcolor='#e0e0e0',
+                       background='#4CAF50',  # Green color
+                       darkcolor='#388E3C',
+                       lightcolor='#66BB6A',
+                       bordercolor='#cccccc',
+                       borderwidth=1)
+        
+        self.progress_bar = ttk.Progressbar(progress_frame, 
+                                           mode='indeterminate',
+                                           style='Custom.Horizontal.TProgressbar')
         self.progress_bar.pack(fill=tk.X, pady=5)
         
         # Results section
@@ -188,8 +205,15 @@ class DuplicateFinderTab(ttk.Frame):
     
     def update_progress(self, files_count, current_file):
         """Update progress display"""
+        # Calculate elapsed time
+        if hasattr(self, 'start_time') and self.start_time:
+            elapsed = int(time.time() - self.start_time)
+            time_str = f" - {elapsed}s"
+        else:
+            time_str = ""
+        
         self.progress_label.config(
-            text=f"Đã quét {files_count} file... {os.path.basename(current_file)}"
+            text=f"Đã quét {files_count} file{time_str}... {os.path.basename(current_file)}"
         )
     
     def start_scan(self):
@@ -216,6 +240,10 @@ class DuplicateFinderTab(ttk.Frame):
             return
         
         self.scanning = True
+        self.start_time = time.time()  # Start timer
+        self.current_scan_id += 1  # Increment scan ID
+        scan_id = self.current_scan_id  # Capture current ID
+        self.duplicate_finder.cancelled = False  # Reset cancelled flag
         self.scan_btn.config(state=tk.DISABLED)
         self.cancel_btn.config(state=tk.NORMAL)
         self.progress_bar.start()
@@ -224,24 +252,32 @@ class DuplicateFinderTab(ttk.Frame):
         # Run scan in separate thread
         thread = threading.Thread(
             target=self.run_scan,
-            args=(min_size_bytes,),
+            args=(min_size_bytes, scan_id),
             daemon=True
         )
         thread.start()
     
-    def run_scan(self, min_size):
+    def run_scan(self, min_size, scan_id):
         """Run the scan in background thread"""
         try:
             self.duplicate_groups = self.duplicate_finder.find_duplicates(
                 self.selected_directories,
                 min_size=min_size
             )
-            self.after(0, self.scan_complete)
+            # Only update UI if this is still the current scan
+            if self.scanning and scan_id == self.current_scan_id:
+                self.after(0, self.scan_complete)
         except Exception as e:
-            self.after(0, lambda: self.scan_error(str(e)))
+            # Only show error if this is still the current scan
+            if self.scanning and scan_id == self.current_scan_id:
+                self.after(0, lambda: self.scan_error(str(e)))
     
     def scan_complete(self):
         """Handle scan completion"""
+        # Don't do anything if scan was cancelled
+        if not self.scanning:
+            return
+        
         self.scanning = False
         self.scan_btn.config(state=tk.NORMAL)
         self.cancel_btn.config(state=tk.DISABLED)
@@ -265,6 +301,10 @@ class DuplicateFinderTab(ttk.Frame):
     
     def scan_error(self, error_msg):
         """Handle scan error"""
+        # Don't do anything if scan was cancelled
+        if not self.scanning:
+            return
+        
         self.scanning = False
         self.scan_btn.config(state=tk.NORMAL)
         self.cancel_btn.config(state=tk.DISABLED)
