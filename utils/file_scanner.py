@@ -115,16 +115,19 @@ class FileScanner:
                         stat = os.stat(filepath)
                         file_size = stat.st_size
                         
+                        # Count ALL files scanned (before filtering)
+                        self.files_scanned += 1
+                        
+                        # Report progress every 100 files
+                        if self.progress_callback and self.files_scanned % 100 == 0:
+                            self.progress_callback(self.files_scanned, filepath)
+                        
+                        # Filter by size
                         if file_size < min_size:
                             continue
                         
                         if max_size is not None and file_size > max_size:
                             continue
-                        
-                        self.files_scanned += 1
-                        
-                        if self.progress_callback and self.files_scanned % 100 == 0:
-                            self.progress_callback(self.files_scanned, filepath)
                         
                         yield filepath
                         

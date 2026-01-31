@@ -15,6 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from gui.duplicate_finder_tab import DuplicateFinderTab
 from gui.size_filter_tab import SizeFilterTab
 from gui.file_type_filter_tab import FileTypeFilterTab
+from gui.file_search_tab import FileSearchTab
 import config
 
 
@@ -51,6 +52,10 @@ class StorageManagerApp(tk.Tk):
         # Tab 3: File Type Filter
         self.file_type_tab = FileTypeFilterTab(self.notebook)
         self.notebook.add(self.file_type_tab, text="📁 Phân Loại Định Dạng")
+        
+        # Tab 4: File Search
+        self.search_tab = FileSearchTab(self.notebook)
+        self.notebook.add(self.search_tab, text="🔍 Tìm Kiếm File")
         
         # Status bar
         self.create_status_bar()

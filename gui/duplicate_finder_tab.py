@@ -217,7 +217,7 @@ class DuplicateFinderTab(ttk.Frame):
             time_str = ""
         
         self.progress_label.config(
-            text=f"Đã quét {files_count} file{time_str}... {os.path.basename(current_file)}"
+            text=f"Đang quét {files_count:,} files{time_str}..."
         )
     
     def start_scan(self):
@@ -261,12 +261,32 @@ class DuplicateFinderTab(ttk.Frame):
         )
         thread.start()
     
+    def update_hash_progress(self, phase, current, total, filename):
+        """Update progress for hash calculation phases"""
+        if hasattr(self, 'start_time') and self.start_time:
+            elapsed = int(time.time() - self.start_time)
+            time_str = f" - {elapsed}s"
+        else:
+            time_str = ""
+        
+        if phase == "quick_hash":
+            phase_name = "So sánh nhanh"
+        else:  # full_hash
+            phase_name = "Kiểm tra chi tiết"
+        
+        percentage = int((current / total * 100)) if total > 0 else 0
+        self.progress_label.config(
+            text=f"{phase_name}: {current:,}/{total:,} files ({percentage}%){time_str}..."
+        )
+    
     def run_scan(self, min_size, scan_id):
         """Run the scan in background thread"""
         try:
             self.duplicate_groups = self.duplicate_finder.find_duplicates(
                 self.selected_directories,
-                min_size=min_size
+                min_size=min_size,
+                hash_progress_callback=lambda phase, cur, tot, file: 
+                    self.after(0, lambda: self.update_hash_progress(phase, cur, tot, file))
             )
             # Only update UI if this is still the current scan
             if self.scanning and scan_id == self.current_scan_id:

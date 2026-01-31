@@ -263,7 +263,7 @@ class FileTypeFilterTab(ttk.Frame):
             time_str = ""
         
         self.progress_label.config(
-            text=f"Đã quét {files_count} file{time_str}... {os.path.basename(current_file)}"
+            text=f"Đang quét {files_count:,} files{time_str}..."
         )
     
     def start_scan(self):

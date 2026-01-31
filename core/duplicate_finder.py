@@ -28,14 +28,17 @@ class DuplicateFinder:
         self.cancelled = True
         self.scanner.cancel()
     
+    
     def find_duplicates(self, directories: List[str], 
-                       min_size: int = 0) -> Dict[str, List[dict]]:
+                       min_size: int = 0,
+                       hash_progress_callback=None) -> Dict[str, List[dict]]:
         """
         Find duplicate files in given directories
         
         Args:
             directories: List of directory paths to scan
             min_size: Minimum file size to consider (in bytes)
+            hash_progress_callback: Optional callback(phase, current, total, message)
             
         Returns:
             Dictionary mapping hash to list of duplicate file info
@@ -60,6 +63,15 @@ class DuplicateFinder:
         # Step 2: For files with same size, calculate quick hash
         quick_hash_groups = defaultdict(list)
         
+        # Count files that need quick hashing
+        files_to_quick_hash = []
+        for size, filepaths in size_groups.items():
+            if len(filepaths) >= 2:
+                files_to_quick_hash.extend(filepaths)
+        
+        total_quick_hash = len(files_to_quick_hash)
+        processed_quick = 0
+        
         for size, filepaths in size_groups.items():
             if self.cancelled:
                 break
@@ -75,9 +87,24 @@ class DuplicateFinder:
                 quick_hash = self.hash_calculator.calculate_quick_hash(filepath)
                 if quick_hash:
                     quick_hash_groups[(size, quick_hash)].append(filepath)
+                
+                # Report progress
+                processed_quick += 1
+                if hash_progress_callback and processed_quick % 10 == 0:
+                    hash_progress_callback("quick_hash", processed_quick, total_quick_hash, 
+                                          os.path.basename(filepath))
         
         # Step 3: For files with same quick hash, calculate full hash
         full_hash_groups = defaultdict(list)
+        
+        # Count files that need full hashing
+        files_to_full_hash = []
+        for (size, quick_hash), filepaths in quick_hash_groups.items():
+            if len(filepaths) >= 2:
+                files_to_full_hash.extend(filepaths)
+        
+        total_full_hash = len(files_to_full_hash)
+        processed_full = 0
         
         for (size, quick_hash), filepaths in quick_hash_groups.items():
             if self.cancelled:
@@ -96,6 +123,12 @@ class DuplicateFinder:
                     file_info = self.scanner.get_file_info(filepath)
                     file_info['hash'] = full_hash
                     full_hash_groups[full_hash].append(file_info)
+                
+                # Report progress
+                processed_full += 1
+                if hash_progress_callback and processed_full % 10 == 0:
+                    hash_progress_callback("full_hash", processed_full, total_full_hash,
+                                          os.path.basename(filepath))
         
         # Step 4: Filter out groups with only one file
         duplicates = {
