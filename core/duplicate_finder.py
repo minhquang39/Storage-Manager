@@ -5,23 +5,31 @@ Duplicate file finder module
 import os
 from collections import defaultdict
 from typing import Dict, List, Callable, Optional
+
+import config
 from utils.file_scanner import FileScanner
 from utils.hash_calculator import HashCalculator
+from utils.hash_cache import HashCache
 
 
 class DuplicateFinder:
     """Find duplicate files based on content hash"""
     
-    def __init__(self, progress_callback: Optional[Callable] = None):
+    def __init__(self, progress_callback: Optional[Callable] = None, enable_cache: bool = True):
         """
         Initialize duplicate finder
         
         Args:
             progress_callback: Optional callback for progress updates
+            enable_cache: Enable persistent hash caching (default: True)
         """
         self.scanner = FileScanner(progress_callback)
         self.hash_calculator = HashCalculator()
         self.cancelled = False
+        
+        # Initialize hash cache
+        self.cache_enabled = enable_cache
+        self.cache = HashCache() if enable_cache else None
     
     def cancel(self):
         """Cancel the current operation"""
@@ -84,7 +92,22 @@ class DuplicateFinder:
                 if self.cancelled:
                     break
                 
-                quick_hash = self.hash_calculator.calculate_quick_hash(filepath)
+                quick_hash = None
+                
+                # Try cache first
+                if self.cache_enabled and self.cache:
+                    cached = self.cache.get_cached_hash(filepath)
+                    if cached:
+                        quick_hash, _ = cached  # Get quick_hash from cache
+                
+                # Calculate if not in cache
+                if not quick_hash:
+                    quick_hash = self.hash_calculator.calculate_quick_hash(filepath)
+                    
+                    # Update cache with quick hash (full hash will be added later if needed)
+                    if quick_hash and self.cache_enabled and self.cache:
+                        self.cache.update_cache(filepath, quick_hash, None)
+                
                 if quick_hash:
                     quick_hash_groups[(size, quick_hash)].append(filepath)
                 
@@ -94,41 +117,100 @@ class DuplicateFinder:
                     hash_progress_callback("quick_hash", processed_quick, total_quick_hash, 
                                           os.path.basename(filepath))
         
-        # Step 3: For files with same quick hash, calculate full hash
+        # Step 3: For files with same quick hash, calculate full hash (MULTI-THREADED for large files)
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        import threading
+        
         full_hash_groups = defaultdict(list)
+        full_hash_groups_lock = threading.Lock()  # Thread-safe access
         
         # Count files that need full hashing
         files_to_full_hash = []
         for (size, quick_hash), filepaths in quick_hash_groups.items():
             if len(filepaths) >= 2:
-                files_to_full_hash.extend(filepaths)
+                files_to_full_hash.extend([(size, quick_hash, fp) for fp in filepaths])
         
         total_full_hash = len(files_to_full_hash)
         processed_full = 0
+        processed_lock = threading.Lock()
         
-        for (size, quick_hash), filepaths in quick_hash_groups.items():
+        def process_file(size, quick_hash, filepath):
+            """Process single file - thread worker function"""
             if self.cancelled:
-                break
+                return None
             
-            # Only process if there are multiple files with same quick hash
-            if len(filepaths) < 2:
-                continue
-            
-            for filepath in filepaths:
-                if self.cancelled:
-                    break
+            # Optimization: Skip full hash for small files (quick hash is sufficient)
+            if size < config.SMALL_FILE_THRESHOLD:
+                # For small files, use quick_hash as the "full" hash
+                file_info = self.scanner.get_file_info(filepath)
+                file_info['hash'] = quick_hash  # Reuse quick hash
                 
-                full_hash = self.hash_calculator.calculate_file_hash(filepath)
+                # Update cache (small files don't need full hash)
+                if self.cache_enabled and self.cache:
+                    self.cache.update_cache(filepath, quick_hash, quick_hash)
+                
+                return (quick_hash, file_info, False)  # False = skipped full hash
+            else:
+                # Check cache for full hash first
+                full_hash = None
+                if self.cache_enabled and self.cache:
+                    cached = self.cache.get_cached_hash(filepath)
+                    if cached and cached[1]:  # cached[1] is full_hash
+                        full_hash = cached[1]
+                
+                # Calculate full hash if not in cache
+                if not full_hash:
+                    full_hash = self.hash_calculator.calculate_file_hash(filepath)
+                    
+                    # Update cache with full hash
+                    if full_hash and self.cache_enabled and self.cache:
+                        self.cache.update_cache(filepath, quick_hash, full_hash)
+                
                 if full_hash:
                     file_info = self.scanner.get_file_info(filepath)
                     file_info['hash'] = full_hash
-                    full_hash_groups[full_hash].append(file_info)
+                    return (full_hash, file_info, True)  # True = calculated full hash
+            return None
+        
+        # Use ThreadPoolExecutor for parallel processing (4 workers)
+        max_workers = min(4, len(files_to_full_hash) or 1)
+        
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all tasks
+            futures = {
+                executor.submit(process_file, size, qh, fp): (size, qh, fp)
+                for size, qh, fp in files_to_full_hash
+            }
+            
+            # Process completed futures
+            for future in as_completed(futures):
+                if self.cancelled:
+                    # Cancel all remaining tasks
+                    executor.shutdown(wait=False, cancel_futures=True)
+                    break
                 
-                # Report progress
-                processed_full += 1
-                if hash_progress_callback and processed_full % 10 == 0:
-                    hash_progress_callback("full_hash", processed_full, total_full_hash,
-                                          os.path.basename(filepath))
+                try:
+                    result = future.result()
+                    if result:
+                        hash_val, file_info, was_full_hash = result
+                        
+                        # Thread-safe append
+                        with full_hash_groups_lock:
+                            full_hash_groups[hash_val].append(file_info)
+                        
+                        # Thread-safe progress update
+                        with processed_lock:
+                            processed_full += 1
+                            
+                            if hash_progress_callback and processed_full % 10 == 0:
+                                phase_name = "full_hash" if was_full_hash else "small_file"
+                                hash_progress_callback(phase_name, processed_full, total_full_hash,
+                                                      os.path.basename(file_info['path']))
+                
+                except Exception as e:
+                    # Handle any errors in thread
+                    print(f"Error processing file: {e}")
+                    continue
         
         # Step 4: Filter out groups with only one file
         duplicates = {

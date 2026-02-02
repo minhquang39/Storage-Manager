@@ -47,7 +47,7 @@ AUTO_SCAN_ALL_DRIVES = True  # Automatically scan all drives
 AUTO_EXCLUDE_USERS_APPDATA = True  # Exclude Users\*\AppData automatically
 
 # File scanning settings
-CHUNK_SIZE = 8192  # Bytes to read at a time for hashing
+CHUNK_SIZE = 65536  # 64KB - Faster disk I/O (was 8KB)
 MAX_FILE_SIZE = 10 * 1024 * 1024 * 1024  # 10GB max file size to process
 MIN_FILE_SIZE = 1  # 1 byte minimum
 
@@ -57,7 +57,10 @@ WINDOW_HEIGHT = 700
 PREVIEW_IMAGE_SIZE = (200, 200)
 
 # Hash algorithm
-HASH_ALGORITHM = 'md5'  # Fast and sufficient for duplicate detection
+HASH_ALGORITHM = 'xxh64'  # Ultra-fast hash for duplicate detection (25x faster than MD5)
+
+# Small file optimization
+SMALL_FILE_THRESHOLD = 1024 * 1024  # 1MB - Files smaller than this skip full hash
 
 # File extensions for preview
 IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.ico', '.tiff', '.webp'}

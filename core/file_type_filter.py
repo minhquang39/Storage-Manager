@@ -2,6 +2,7 @@
 File type filter module
 """
 
+import os
 from typing import List, Dict, Set, Callable, Optional
 from utils.file_scanner import FileScanner
 
@@ -85,22 +86,24 @@ class FileTypeFilter:
         if not target_extensions:
             return []
         
-        # Scan and collect matching files
+        # Scan and collect matching files (use optimized method with cached stat)
         matched_files = []
         
         for directory in directories:
             if self.cancelled:
                 break
             
-            for filepath in self.scanner.scan_directory(directory):
+            # Use scan_directory_with_stat to avoid double os.stat() call
+            for filepath, stat in self.scanner.scan_directory_with_stat(directory):
                 if self.cancelled:
                     break
                 
-                file_info = self.scanner.get_file_info(filepath)
-                extension = file_info.get('extension', '').lower()
+                # Get extension directly (faster than full get_file_info for filtering)
+                extension = os.path.splitext(filepath)[1].lower()
                 
                 if extension in target_extensions:
-                    # Add group info to file
+                    # Only get full file_info for matching files
+                    file_info = self.scanner.get_file_info(filepath, cached_stat=stat)
                     file_info['group'] = self._get_group_for_extension(extension)
                     matched_files.append(file_info)
         

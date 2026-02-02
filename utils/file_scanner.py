@@ -22,6 +22,8 @@ class FileScanner:
         self.progress_callback = progress_callback
         self.files_scanned = 0
         self.cancelled = False
+        # Pre-compute lowercase excluded dirs for faster matching
+        self._excluded_lower = {ex.lower() for ex in config.EXCLUDED_DIRS}
     
     @staticmethod
     def get_all_drives() -> List[str]:
@@ -53,7 +55,7 @@ class FileScanner:
     
     def is_safe_directory(self, path: str) -> bool:
         """
-        Check if directory is safe to scan
+        Check if directory is safe to scan (optimized)
         
         Args:
             path: Directory path to check
@@ -63,17 +65,15 @@ class FileScanner:
         """
         path_lower = path.lower()
         
-        # Check against excluded directories
-        for excluded in config.EXCLUDED_DIRS:
-            if excluded in path_lower:
+        # Fast check: match any part of path against excluded dirs
+        path_parts = path_lower.replace('/', '\\').split('\\')
+        for part in path_parts:
+            if part in self._excluded_lower:
                 return False
         
-        # Check if path is accessible
-        try:
-            os.listdir(path)
-            return True
-        except (PermissionError, OSError):
-            return False
+        # Note: Removed os.listdir() check - let os.walk handle permissions
+        # This is much faster as we don't pre-read directory contents
+        return True
     
     def scan_directory(self, root_path: str, 
                       min_size: int = 0, 
@@ -118,8 +118,8 @@ class FileScanner:
                         # Count ALL files scanned (before filtering)
                         self.files_scanned += 1
                         
-                        # Report progress every 100 files
-                        if self.progress_callback and self.files_scanned % 100 == 0:
+                        # Report progress every 500 files (reduced overhead)
+                        if self.progress_callback and self.files_scanned % 500 == 0:
                             self.progress_callback(self.files_scanned, filepath)
                         
                         # Filter by size
@@ -138,18 +138,72 @@ class FileScanner:
         except Exception as e:
             print(f"Error scanning {root_path}: {e}")
     
-    def get_file_info(self, filepath: str) -> dict:
+    def scan_directory_with_stat(self, root_path: str, 
+                                  min_size: int = 0, 
+                                  max_size: Optional[int] = None) -> Generator[tuple, None, None]:
+        """
+        Scan directory and yield file paths WITH stat result (optimized).
+        Use this to avoid calling os.stat() twice.
+        
+        Yields:
+            Tuple of (filepath, stat_result)
+        """
+        self.files_scanned = 0
+        self.cancelled = False
+        
+        if not self.is_safe_directory(root_path):
+            return
+        
+        try:
+            for dirpath, dirnames, filenames in os.walk(root_path):
+                if self.cancelled:
+                    break
+                
+                # Filter out unsafe directories (in-place modification)
+                dirnames[:] = [d for d in dirnames 
+                             if self.is_safe_directory(os.path.join(dirpath, d))]
+                
+                for filename in filenames:
+                    if self.cancelled:
+                        break
+                    
+                    filepath = os.path.join(dirpath, filename)
+                    
+                    try:
+                        stat = os.stat(filepath)
+                        file_size = stat.st_size
+                        
+                        self.files_scanned += 1
+                        
+                        if self.progress_callback and self.files_scanned % 500 == 0:
+                            self.progress_callback(self.files_scanned, filepath)
+                        
+                        if file_size < min_size:
+                            continue
+                        if max_size is not None and file_size > max_size:
+                            continue
+                        
+                        yield (filepath, stat)
+                        
+                    except (OSError, PermissionError):
+                        continue
+                        
+        except Exception as e:
+            print(f"Error scanning {root_path}: {e}")
+    
+    def get_file_info(self, filepath: str, cached_stat: Optional[os.stat_result] = None) -> dict:
         """
         Get detailed file information
         
         Args:
             filepath: Path to file
+            cached_stat: Optional pre-fetched stat result to avoid duplicate syscall
             
         Returns:
             Dictionary with file information
         """
         try:
-            stat = os.stat(filepath)
+            stat = cached_stat if cached_stat else os.stat(filepath)
             return {
                 'path': filepath,
                 'name': os.path.basename(filepath),

@@ -5,6 +5,8 @@ Hash calculator for file comparison
 import hashlib
 import os
 from typing import Optional
+import xxhash
+
 import config
 
 
@@ -27,7 +29,11 @@ class HashCalculator:
             Hash string or None if error
         """
         try:
-            hash_obj = hashlib.new(algorithm)
+            # Use xxHash for ultra-fast hashing
+            if algorithm == 'xxh64':
+                hash_obj = xxhash.xxh64()
+            else:
+                hash_obj = hashlib.new(algorithm)
             
             with open(filepath, 'rb') as f:
                 while True:
@@ -68,8 +74,8 @@ class HashCalculator:
                 else:
                     last_bytes = b''
             
-            # Combine size and samples for quick hash
-            hash_obj = hashlib.sha256()
+            # Combine size and samples for quick hash (xxHash for ultra-fast performance)
+            hash_obj = xxhash.xxh64()
             hash_obj.update(str(file_size).encode())
             hash_obj.update(first_bytes)
             hash_obj.update(last_bytes)

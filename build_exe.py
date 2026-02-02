@@ -60,6 +60,7 @@ cmd = [
     '--hidden-import=send2trash',
     '--hidden-import=PIL',
     '--hidden-import=tkinter',
+    '--hidden-import=xxhash',
     
     # Add data files if needed
     # '--add-data=README.md;.',     # Uncomment to include README

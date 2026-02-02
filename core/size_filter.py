@@ -57,18 +57,20 @@ class SizeFilter:
             min_size = 0
             max_size = None
         
-        # Scan and collect files
+        # Scan and collect files (use optimized method with cached stat)
         matched_files = []
         
         for directory in directories:
             if self.cancelled:
                 break
             
-            for filepath in self.scanner.scan_directory(directory, min_size, max_size):
+            # Use scan_directory_with_stat to avoid double os.stat() call
+            for filepath, stat in self.scanner.scan_directory_with_stat(directory, min_size, max_size):
                 if self.cancelled:
                     break
                 
-                file_info = self.scanner.get_file_info(filepath)
+                # Pass cached stat to avoid second os.stat() call
+                file_info = self.scanner.get_file_info(filepath, cached_stat=stat)
                 
                 # Double-check the condition
                 if self._matches_condition(file_info.get('size', 0), 
