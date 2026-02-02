@@ -14,6 +14,7 @@ import subprocess
 
 from utils.file_scanner import FileScanner
 from core.size_filter import SizeFilter
+from localization import t
 
 
 class FileSearchTab(ttk.Frame):
@@ -36,19 +37,19 @@ class FileSearchTab(ttk.Frame):
         """Create all widgets for this tab"""
         
         # Top section - Directory selection
-        top_frame = ttk.LabelFrame(self, text="Phạm Vi Tìm Kiếm", padding=10)
+        top_frame = ttk.LabelFrame(self, text=t('lbl_search_scope'), padding=10)
         top_frame.pack(fill=tk.X, padx=10, pady=5)
         
         btn_frame = ttk.Frame(top_frame)
         btn_frame.pack(fill=tk.X)
         
-        ttk.Button(btn_frame, text="Thêm Thư Mục", 
+        ttk.Button(btn_frame, text=t('btn_add_folder'), 
                   command=self.add_directory).pack(side=tk.LEFT, padx=5)
-        ttk.Button(btn_frame, text="Quét Tất Cả Ổ", 
+        ttk.Button(btn_frame, text=t('btn_scan_all_drives'), 
                   command=self.scan_all_drives).pack(side=tk.LEFT, padx=5)
-        ttk.Button(btn_frame, text="Xóa Thư Mục", 
+        ttk.Button(btn_frame, text=t('btn_remove_folder'), 
                   command=self.remove_directory).pack(side=tk.LEFT, padx=5)
-        ttk.Button(btn_frame, text="Xóa Tất Cả", 
+        ttk.Button(btn_frame, text=t('btn_clear_all'), 
                   command=self.clear_directories).pack(side=tk.LEFT, padx=5)
         
         # Directory list
@@ -56,14 +57,14 @@ class FileSearchTab(ttk.Frame):
         self.dir_listbox.pack(fill=tk.BOTH, expand=True, pady=5)
         
         # Search options
-        options_frame = ttk.LabelFrame(self, text="Tùy Chọn Tìm Kiếm", padding=10)
+        options_frame = ttk.LabelFrame(self, text=t('lbl_search_options'), padding=10)
         options_frame.pack(fill=tk.X, padx=10, pady=5)
         
         # Search pattern row
         pattern_frame = ttk.Frame(options_frame)
         pattern_frame.pack(fill=tk.X, pady=5)
         
-        ttk.Label(pattern_frame, text="Tên file:").pack(side=tk.LEFT, padx=5)
+        ttk.Label(pattern_frame, text=t('lbl_filename')).pack(side=tk.LEFT, padx=5)
         self.search_pattern = tk.StringVar()
         self.search_entry = ttk.Entry(pattern_frame, textvariable=self.search_pattern, width=40)
         self.search_entry.pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
@@ -71,32 +72,32 @@ class FileSearchTab(ttk.Frame):
         
         # Help text
         help_label = ttk.Label(options_frame, 
-                              text="💡 Nhập một phần tên file (không phân biệt hoa/thường)",
+                              text=t('lbl_search_help'),
                               font=('Arial', 9, 'italic'),
                               foreground='gray')
         help_label.pack(pady=(0, 5))
         
         # Scan button
-        self.scan_btn = ttk.Button(options_frame, text="Bắt Đầu Tìm Kiếm", 
+        self.scan_btn = ttk.Button(options_frame, text=t('btn_start_search'), 
                                    command=self.start_scan)
         self.scan_btn.pack(pady=5)
         
-        self.cancel_btn = ttk.Button(options_frame, text="Hủy Tìm Kiếm", 
+        self.cancel_btn = ttk.Button(options_frame, text=t('btn_cancel_search'), 
                                      command=self.cancel_scan, state=tk.DISABLED)
         self.cancel_btn.pack(pady=5)
         
         # Progress section
-        progress_frame = ttk.LabelFrame(self, text="Tiến Trình", padding=10)
+        progress_frame = ttk.LabelFrame(self, text=t('lbl_progress'), padding=10)
         progress_frame.pack(fill=tk.X, padx=10, pady=5)
         
-        self.progress_label = ttk.Label(progress_frame, text="Nhập tên file và nhấn 'Bắt Đầu Tìm Kiếm'")
+        self.progress_label = ttk.Label(progress_frame, text=t('lbl_ready'))
         self.progress_label.pack()
         
         self.progress_bar = ttk.Progressbar(progress_frame, mode='indeterminate')
         self.progress_bar.pack(fill=tk.X, pady=5)
         
         # Results section
-        results_frame = ttk.LabelFrame(self, text="File Tìm Thấy", padding=10)
+        results_frame = ttk.LabelFrame(self, text=t('lbl_files_found'), padding=10)
         results_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
         
         # File list with checkboxes
@@ -110,11 +111,11 @@ class FileSearchTab(ttk.Frame):
                                      columns=('Name', 'Size', 'Modified', 'Path'),
                                      show='tree headings', 
                                      yscrollcommand=scrollbar.set)
-        self.file_tree.heading('#0', text='Chọn')
-        self.file_tree.heading('Name', text='Tên File')
-        self.file_tree.heading('Size', text='Kích Thước')
-        self.file_tree.heading('Modified', text='Ngày Sửa')
-        self.file_tree.heading('Path', text='Đường Dẫn')
+        self.file_tree.heading('#0', text=t('col_select'))
+        self.file_tree.heading('Name', text=t('col_name'))
+        self.file_tree.heading('Size', text=t('col_size'))
+        self.file_tree.heading('Modified', text=t('col_modified'))
+        self.file_tree.heading('Path', text=t('col_path'))
         
         self.file_tree.column('#0', width=60)
         self.file_tree.column('Name', width=200)
@@ -135,11 +136,11 @@ class FileSearchTab(ttk.Frame):
         action_frame = ttk.Frame(results_frame)
         action_frame.pack(fill=tk.X, pady=5)
         
-        ttk.Button(action_frame, text="Chọn Tất Cả", 
+        ttk.Button(action_frame, text=t('btn_select_all'), 
                   command=self.select_all).pack(side=tk.LEFT, padx=2)
-        ttk.Button(action_frame, text="Bỏ Chọn Tất Cả", 
+        ttk.Button(action_frame, text=t('btn_deselect_all'), 
                   command=self.deselect_all).pack(side=tk.LEFT, padx=2)
-        ttk.Button(action_frame, text="Xóa File Đã Chọn", 
+        ttk.Button(action_frame, text=t('btn_delete_selected'), 
                   command=self.delete_selected, 
                   style='Accent.TButton').pack(side=tk.LEFT, padx=2)
         
@@ -188,7 +189,7 @@ class FileSearchTab(ttk.Frame):
             time_str = ""
         
         self.progress_label.config(
-            text=f"Đã quét {files_count:,} files, tìm thấy {len(self.matched_files):,}{time_str}..."
+            text=t('lbl_files_searched', scanned=f"{files_count:,}", found=f"{len(self.matched_files):,}{time_str}")
         )
     
     def start_scan(self):
@@ -199,11 +200,11 @@ class FileSearchTab(ttk.Frame):
         # Get search pattern
         pattern = self.search_pattern.get().strip()
         if not pattern:
-            messagebox.showwarning("Cảnh Báo", "Vui lòng nhập tên file cần tìm")
+            messagebox.showwarning(t('dlg_warning'), t('dlg_enter_filename'))
             return
         
         if not self.selected_directories:
-            messagebox.showwarning("Cảnh Báo", "Vui lòng chọn thư mục để tìm kiếm")
+            messagebox.showwarning(t('dlg_warning'), t('dlg_select_search_folder'))
             return
         
         # Start scan (no size filter)
@@ -274,8 +275,7 @@ class FileSearchTab(ttk.Frame):
         size_str = SizeFilter.format_size(total_size)
         
         self.progress_label.config(
-            text=f"✓ Hoàn thành! Tìm thấy {len(self.matched_files):,} files. "
-            f"Tổng dung lượng: {size_str} ({elapsed}s)"
+            text=t('lbl_search_complete', count=f"{len(self.matched_files):,}", size=size_str, time=elapsed)
         )
     
     def scan_error(self, error_msg):
@@ -284,8 +284,8 @@ class FileSearchTab(ttk.Frame):
         self.scan_btn.config(state=tk.NORMAL)
         self.cancel_btn.config(state=tk.DISABLED)
         self.progress_bar.stop()
-        self.progress_label.config(text=f"Lỗi: {error_msg}")
-        messagebox.showerror("Lỗi Quét", f"Đã xảy ra lỗi: {error_msg}")
+        self.progress_label.config(text=f"{t('dlg_error')}: {error_msg}")
+        messagebox.showerror(t('dlg_error'), f"{t('dlg_error')}: {error_msg}")
     
     def cancel_scan(self):
         """Cancel ongoing scan"""
@@ -294,7 +294,7 @@ class FileSearchTab(ttk.Frame):
         self.scan_btn.config(state=tk.NORMAL)
         self.cancel_btn.config(state=tk.DISABLED)
         self.progress_bar.stop()
-        self.progress_label.config(text="Đã hủy quét")
+        self.progress_label.config(text=t('progress_cancelled'))
     
     def display_results(self):
         """Display scan results"""
@@ -326,7 +326,7 @@ class FileSearchTab(ttk.Frame):
         size_str = SizeFilter.format_size(total_size)
         
         self.total_label.config(
-            text=f"Tổng: {total_files:,} files - {size_str}"
+            text=t('lbl_total_files', count=f"{total_files:,}", size=size_str)
         )
     
     def on_file_double_click(self, event):
@@ -350,7 +350,7 @@ class FileSearchTab(ttk.Frame):
             normalized_path = os.path.normpath(filepath)
             subprocess.run(['explorer', '/select,', normalized_path])
         except Exception as e:
-            messagebox.showerror("Lỗi", f"Không thể mở file explorer: {e}")
+            messagebox.showerror(t('dlg_error'), f"{t('dlg_error')}: {e}")
     
     def on_tree_click(self, event):
         """Handle tree item click for checkbox"""
@@ -390,7 +390,7 @@ class FileSearchTab(ttk.Frame):
                     selected_files.append(filepath)
         
         if not selected_files:
-            messagebox.showinfo("Thông Báo", "Vui lòng chọn file để xóa")
+            messagebox.showinfo(t('dlg_no_selection_title'), t('dlg_no_selection'))
             return
         
         # Confirm deletion
@@ -400,10 +400,8 @@ class FileSearchTab(ttk.Frame):
         )
         size_str = SizeFilter.format_size(total_size)
         
-        msg = f"Bạn có chắc muốn xóa {len(selected_files)} files ({size_str})?\n"
-        msg += "Các file sẽ được chuyển vào Thùng Rác."
-        
-        if not messagebox.askyesno("Xác Nhận Xóa", msg):
+        if not messagebox.askyesno(t('dlg_confirm_delete'), 
+                                    t('dlg_delete_count', count=f"{len(selected_files)} ({size_str})")):
             return
         
         # Delete files
@@ -420,14 +418,13 @@ class FileSearchTab(ttk.Frame):
         
         # Show results
         if errors:
-            error_msg = f"Đã xóa {deleted_count}/{len(selected_files)} files.\n\n"
-            error_msg += "Lỗi:\n" + "\n".join(errors[:5])
+            error_msg = t('dlg_delete_success', count=deleted_count) + f"/{len(selected_files)}.\n\n"
+            error_msg += f"{t('dlg_error')}:\n" + "\n".join(errors[:5])
             if len(errors) > 5:
-                error_msg += f"\n... và {len(errors)-5} lỗi khác"
-            messagebox.showwarning("Hoàn Thành Một Phần", error_msg)
+                error_msg += f"\n... and {len(errors)-5} more"
+            messagebox.showwarning(t('dlg_partial_success'), error_msg)
         else:
-            messagebox.showinfo("Hoàn Thành", 
-                              f"Đã xóa {deleted_count} files vào Thùng Rác!")
+            messagebox.showinfo(t('dlg_success'), t('dlg_delete_success', count=deleted_count))
         
         # Remove deleted files from list
         self.matched_files = [

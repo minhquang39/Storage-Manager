@@ -68,59 +68,83 @@ class DuplicateFinder:
                 except OSError:
                     continue
         
-        # Step 2: For files with same size, calculate quick hash
-        quick_hash_groups = defaultdict(list)
-        
-        # Count files that need quick hashing
-        files_to_quick_hash = []
-        for size, filepaths in size_groups.items():
-            if len(filepaths) >= 2:
-                files_to_quick_hash.extend(filepaths)
-        
-        total_quick_hash = len(files_to_quick_hash)
-        processed_quick = 0
-        
-        for size, filepaths in size_groups.items():
-            if self.cancelled:
-                break
-            
-            # Only process if there are multiple files with same size
-            if len(filepaths) < 2:
-                continue
-            
-            for filepath in filepaths:
-                if self.cancelled:
-                    break
-                
-                quick_hash = None
-                
-                # Try cache first
-                if self.cache_enabled and self.cache:
-                    cached = self.cache.get_cached_hash(filepath)
-                    if cached:
-                        quick_hash, _ = cached  # Get quick_hash from cache
-                
-                # Calculate if not in cache
-                if not quick_hash:
-                    quick_hash = self.hash_calculator.calculate_quick_hash(filepath)
-                    
-                    # Update cache with quick hash (full hash will be added later if needed)
-                    if quick_hash and self.cache_enabled and self.cache:
-                        self.cache.update_cache(filepath, quick_hash, None)
-                
-                if quick_hash:
-                    quick_hash_groups[(size, quick_hash)].append(filepath)
-                
-                # Report progress
-                processed_quick += 1
-                if hash_progress_callback and processed_quick % 10 == 0:
-                    hash_progress_callback("quick_hash", processed_quick, total_quick_hash, 
-                                          os.path.basename(filepath))
-        
-        # Step 3: For files with same quick hash, calculate full hash (MULTI-THREADED for large files)
+        # Step 2: For files with same size, calculate quick hash (MULTI-THREADED)
         from concurrent.futures import ThreadPoolExecutor, as_completed
         import threading
         
+        quick_hash_groups = defaultdict(list)
+        quick_hash_lock = threading.Lock()
+        
+        # Collect files that need quick hashing (size >= 2 files)
+        files_to_quick_hash = []
+        for size, filepaths in size_groups.items():
+            if len(filepaths) >= 2:
+                for fp in filepaths:
+                    files_to_quick_hash.append((size, fp))
+        
+        total_quick_hash = len(files_to_quick_hash)
+        processed_quick = [0]  # Use list for mutable in closure
+        processed_lock = threading.Lock()
+        
+        def process_quick_hash(size_filepath):
+            """Process single file for quick hash - thread worker"""
+            size, filepath = size_filepath
+            if self.cancelled:
+                return None
+            
+            quick_hash = None
+            
+            # Try cache first
+            if self.cache_enabled and self.cache:
+                cached = self.cache.get_cached_hash(filepath)
+                if cached:
+                    quick_hash, _ = cached
+            
+            # Calculate if not in cache
+            if not quick_hash:
+                quick_hash = self.hash_calculator.calculate_quick_hash(filepath)
+                
+                # Update cache (thread-safe via db_lock in HashCache)
+                if quick_hash and self.cache_enabled and self.cache:
+                    self.cache.update_cache(filepath, quick_hash, None)
+            
+            return (size, quick_hash, filepath) if quick_hash else None
+        
+        # Use 8 workers for quick hash (I/O bound - more threads = better)
+        max_workers = min(8, len(files_to_quick_hash) or 1)
+        
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(process_quick_hash, item): item 
+                      for item in files_to_quick_hash}
+            
+            for future in as_completed(futures):
+                if self.cancelled:
+                    executor.shutdown(wait=False, cancel_futures=True)
+                    break
+                
+                try:
+                    result = future.result()
+                    if result:
+                        size, quick_hash, filepath = result
+                        
+                        # Thread-safe append
+                        with quick_hash_lock:
+                            quick_hash_groups[(size, quick_hash)].append(filepath)
+                        
+                        # Thread-safe progress update
+                        with processed_lock:
+                            processed_quick[0] += 1
+                            if hash_progress_callback and processed_quick[0] % 100 == 0:
+                                hash_progress_callback("quick_hash", processed_quick[0], 
+                                                      total_quick_hash, os.path.basename(filepath))
+                except Exception:
+                    continue
+        
+        # Flush quick hash cache updates
+        if self.cache_enabled and self.cache:
+            self.cache.flush()
+        
+        # Step 3: For files with same quick hash, calculate full hash (MULTI-THREADED)
         full_hash_groups = defaultdict(list)
         full_hash_groups_lock = threading.Lock()  # Thread-safe access
         
@@ -211,6 +235,10 @@ class DuplicateFinder:
                     # Handle any errors in thread
                     print(f"Error processing file: {e}")
                     continue
+        
+        # Flush cache to disk (batch commit)
+        if self.cache_enabled and self.cache:
+            self.cache.flush()
         
         # Step 4: Filter out groups with only one file
         duplicates = {

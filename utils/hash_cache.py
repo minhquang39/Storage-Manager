@@ -102,7 +102,7 @@ class HashCache:
     
     def update_cache(self, filepath: str, quick_hash: str, full_hash: Optional[str] = None):
         """
-        Update cache with new hash values
+        Update cache with new hash values (batched - call flush() when done)
         
         Args:
             filepath: Path to file
@@ -123,11 +123,18 @@ class HashCache:
                     (path, size, mtime, quick_hash, full_hash, last_checked)
                     VALUES (?, ?, ?, ?, ?, ?)
                 ''', (filepath, file_size, file_mtime, quick_hash, full_hash, current_time))
-                
-                self.conn.commit()
+                # NO commit here - batched for performance
             
         except (OSError, sqlite3.Error) as e:
             # Silently fail - cache is optional
+            pass
+    
+    def flush(self):
+        """Commit all pending cache updates to database"""
+        try:
+            with self.db_lock:
+                self.conn.commit()
+        except sqlite3.Error:
             pass
     
     def cleanup_stale(self, max_age_days: int = 30):
@@ -154,6 +161,50 @@ class HashCache:
         except sqlite3.Error as e:
             print(f"Cache cleanup error: {e}")
             return 0
+    
+    def cleanup_orphaned(self, batch_size: int = 1000):
+        """
+        Remove cache entries for files that no longer exist
+        
+        Args:
+            batch_size: Number of entries to check per batch
+            
+        Returns:
+            Number of deleted entries
+        """
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute('SELECT path FROM file_cache')
+            
+            orphaned_paths = []
+            for (file_path,) in cursor.fetchall():
+                if not os.path.exists(file_path):
+                    orphaned_paths.append(file_path)
+            
+            if orphaned_paths:
+                # Delete in batches
+                for i in range(0, len(orphaned_paths), batch_size):
+                    batch = orphaned_paths[i:i + batch_size]
+                    placeholders = ','.join('?' * len(batch))
+                    cursor.execute(f'''
+                        DELETE FROM file_cache 
+                        WHERE path IN ({placeholders})
+                    ''', batch)
+                self.conn.commit()
+            
+            return len(orphaned_paths)
+            
+        except sqlite3.Error as e:
+            print(f"Orphan cleanup error: {e}")
+            return 0
+    
+    def vacuum(self):
+        """Compact database to reclaim space"""
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute('VACUUM')
+        except sqlite3.Error as e:
+            print(f"Vacuum error: {e}")
     
     def get_stats(self) -> dict:
         """

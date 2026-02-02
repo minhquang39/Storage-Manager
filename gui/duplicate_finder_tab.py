@@ -14,6 +14,7 @@ import subprocess
 
 from core.duplicate_finder import DuplicateFinder
 from core.size_filter import SizeFilter
+from localization import t
 
 
 class DuplicateFinderTab(ttk.Frame):
@@ -35,19 +36,19 @@ class DuplicateFinderTab(ttk.Frame):
         """Create all widgets for this tab"""
         
         # Top section - Directory selection
-        top_frame = ttk.LabelFrame(self, text="Phạm Vi Quét", padding=10)
+        top_frame = ttk.LabelFrame(self, text=t('lbl_scan_scope'), padding=10)
         top_frame.pack(fill=tk.X, padx=10, pady=5)
         
         btn_frame = ttk.Frame(top_frame)
         btn_frame.pack(fill=tk.X)
         
-        ttk.Button(btn_frame, text="Thêm Thư Mục", 
+        ttk.Button(btn_frame, text=t('btn_add_folder'), 
                   command=self.add_directory).pack(side=tk.LEFT, padx=5)
-        ttk.Button(btn_frame, text="Quét Tất Cả Ổ", 
+        ttk.Button(btn_frame, text=t('btn_scan_all_drives'), 
                   command=self.scan_all_drives).pack(side=tk.LEFT, padx=5)
-        ttk.Button(btn_frame, text="Xóa Thư Mục", 
+        ttk.Button(btn_frame, text=t('btn_remove_folder'), 
                   command=self.remove_directory).pack(side=tk.LEFT, padx=5)
-        ttk.Button(btn_frame, text="Xóa Tất Cả", 
+        ttk.Button(btn_frame, text=t('btn_clear_all'), 
                   command=self.clear_directories).pack(side=tk.LEFT, padx=5)
         
         # Directory list
@@ -59,7 +60,7 @@ class DuplicateFinderTab(ttk.Frame):
         options_frame.pack(fill=tk.X)
         
         
-        ttk.Label(options_frame, text="Kích Thước Tối Thiểu:").pack(side=tk.LEFT, padx=5)
+        ttk.Label(options_frame, text=t('lbl_min_size')).pack(side=tk.LEFT, padx=5)
         self.min_size_var = tk.StringVar(value="0")
         ttk.Entry(options_frame, textvariable=self.min_size_var, 
                  width=10).pack(side=tk.LEFT, padx=5)
@@ -71,19 +72,19 @@ class DuplicateFinderTab(ttk.Frame):
                     width=5).pack(side=tk.LEFT, padx=5)
         
         # Scan button
-        self.scan_btn = ttk.Button(top_frame, text="Bắt Đầu Quét", 
+        self.scan_btn = ttk.Button(top_frame, text=t('btn_start_scan'), 
                                    command=self.start_scan)
         self.scan_btn.pack(pady=5)
         
-        self.cancel_btn = ttk.Button(top_frame, text="Hủy Quét", 
+        self.cancel_btn = ttk.Button(top_frame, text=t('btn_cancel_scan'), 
                                      command=self.cancel_scan, state=tk.DISABLED)
         self.cancel_btn.pack(pady=5)
         
         # Progress section
-        progress_frame = ttk.LabelFrame(self, text="Tiến Trình", padding=10)
+        progress_frame = ttk.LabelFrame(self, text=t('lbl_progress'), padding=10)
         progress_frame.pack(fill=tk.X, padx=10, pady=5)
         
-        self.progress_label = ttk.Label(progress_frame, text="Sẵn sàng quét")
+        self.progress_label = ttk.Label(progress_frame, text=t('lbl_ready'))
         self.progress_label.pack()
         
         # Create custom style for progress bar
@@ -103,11 +104,11 @@ class DuplicateFinderTab(ttk.Frame):
         self.progress_bar.pack(fill=tk.X, pady=5)
         
         # Results section
-        results_frame = ttk.LabelFrame(self, text="File Trùng Lặp", padding=10)
+        results_frame = ttk.LabelFrame(self, text=t('lbl_duplicates'), padding=10)
         results_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
         
         # Summary label
-        self.summary_label = ttk.Label(results_frame, text="Chưa tìm thấy file trùng lặp")
+        self.summary_label = ttk.Label(results_frame, text=t('lbl_no_duplicates'))
         self.summary_label.pack(fill=tk.X, pady=(0, 5))
         
         # File list with checkboxes
@@ -119,18 +120,18 @@ class DuplicateFinderTab(ttk.Frame):
         
         self.file_tree = ttk.Treeview(list_frame, columns=('Group', 'Name', 'Size', 'Modified', 'Path'),
                                      show='tree headings', yscrollcommand=scrollbar.set)
-        self.file_tree.heading('#0', text='Chọn')
-        self.file_tree.heading('Group', text='Nhóm')
-        self.file_tree.heading('Name', text='Tên File')
-        self.file_tree.heading('Size', text='Kích Thước')
-        self.file_tree.heading('Modified', text='Ngày Sửa')
-        self.file_tree.heading('Path', text='Đường Dẫn')
+        self.file_tree.heading('#0', text=t('col_select'))
+        self.file_tree.heading('Group', text=t('col_group'))
+        self.file_tree.heading('Name', text=t('col_name'))
+        self.file_tree.heading('Size', text=t('col_size'))
+        self.file_tree.heading('Modified', text=t('col_modified'))
+        self.file_tree.heading('Path', text=t('col_path'))
         
-        self.file_tree.column('#0', width=60)
-        self.file_tree.column('Group', width=80)
+        self.file_tree.column('#0', width=60, anchor='center')
+        self.file_tree.column('Group', width=80, anchor='center')
         self.file_tree.column('Name', width=180)
-        self.file_tree.column('Size', width=100)
-        self.file_tree.column('Modified', width=140)
+        self.file_tree.column('Size', width=100, anchor='center')
+        self.file_tree.column('Modified', width=140, anchor='center')
         self.file_tree.column('Path', width=350)
         
         self.file_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
@@ -143,13 +144,13 @@ class DuplicateFinderTab(ttk.Frame):
         action_frame = ttk.Frame(results_frame)
         action_frame.pack(fill=tk.X, pady=5)
         
-        ttk.Button(action_frame, text="Chọn Tất Cả", 
+        ttk.Button(action_frame, text=t('btn_select_all'), 
                   command=self.select_all).pack(side=tk.LEFT, padx=5)
-        ttk.Button(action_frame, text="Bỏ Chọn Tất Cả", 
+        ttk.Button(action_frame, text=t('btn_deselect_all'), 
                   command=self.deselect_all).pack(side=tk.LEFT, padx=5)
-        ttk.Button(action_frame, text="Tự Động Chọn (Giữ Mới Nhất)", 
+        ttk.Button(action_frame, text=t('btn_auto_select'), 
                   command=lambda: self.auto_select('newest')).pack(side=tk.LEFT, padx=5)
-        ttk.Button(action_frame, text="Xóa Đã Chọn", 
+        ttk.Button(action_frame, text=t('btn_delete_selected'), 
                   command=self.delete_selected, 
                   style='Accent.TButton').pack(side=tk.RIGHT, padx=5)
         
@@ -173,10 +174,8 @@ class DuplicateFinderTab(ttk.Frame):
         # Confirm with user
         drive_list = ", ".join(drives)
         result = messagebox.askyesno(
-            "Đồng Ý quét tất cả ổ đĩa?",
-            f"Chương trình sẽ quét tất cả ổ đĩa sau:\n{drive_list}\n\n"
-            f"Các thư mục hệ thống (Windows, Program Files...) sẽ tự động bỏ qua.\n\n"
-            f"Quá trình này có thể mất nhiều thời gian. Tiếp tục?",
+            t('dlg_confirm_delete'),
+            t('msg_confirm_scan_all') + f"\n{drive_list}",
             icon='warning'
         )
         
@@ -193,7 +192,7 @@ class DuplicateFinderTab(ttk.Frame):
         """Remove selected directory from scan list"""
         selection = self.dir_listbox.curselection()
         if not selection:
-            messagebox.showinfo("Chưa Chọn", "Vui lòng chọn thư mục để xóa")
+            messagebox.showinfo(t('dlg_no_selection_title'), t('dlg_select_folder'))
             return
         
         # Get selected index
@@ -217,13 +216,13 @@ class DuplicateFinderTab(ttk.Frame):
             time_str = ""
         
         self.progress_label.config(
-            text=f"Đang quét {files_count:,} files{time_str}..."
+            text=t('progress_scanning', path=f"{files_count:,} files{time_str}...")
         )
     
     def start_scan(self):
         """Start scanning for duplicates"""
         if not self.selected_directories:
-            messagebox.showwarning("Động Lượng Trống", "Vui lòng chọn thư mục để quét")
+            messagebox.showwarning(t('dlg_no_folders_title'), t('dlg_no_folders'))
             return
         
         # Get min file size
@@ -240,7 +239,7 @@ class DuplicateFinderTab(ttk.Frame):
             }
             min_size_bytes = int(min_size_value * unit_multipliers.get(min_size_unit, 1024))
         except ValueError:
-            messagebox.showerror("Đầu Vào Không Hợp Lệ", "Vui lòng nhập số hợp lệ cho kích thước tối thiểu")
+            messagebox.showerror(t('dlg_invalid_input_title'), t('dlg_invalid_input'))
             return
         
         self.scanning = True
@@ -270,9 +269,9 @@ class DuplicateFinderTab(ttk.Frame):
             time_str = ""
         
         if phase == "quick_hash":
-            phase_name = "So sánh nhanh"
+            phase_name = t('progress_quick_compare')
         else:  # full_hash
-            phase_name = "Kiểm tra chi tiết"
+            phase_name = t('progress_detailed_check')
         
         percentage = int((current / total * 100)) if total > 0 else 0
         self.progress_label.config(
@@ -316,12 +315,11 @@ class DuplicateFinderTab(ttk.Frame):
             )
             size_str = SizeFilter.format_size(total_size)
             self.progress_label.config(
-                text=f"Tìm thấy {len(self.duplicate_groups)} nhóm trùng lặp ({total_files} file). "
-                     f"Dung lượng có thể giải phóng: {size_str}"
+                text=t('lbl_found_duplicates', groups=len(self.duplicate_groups), files=total_files, size=size_str)
             )
         else:
-            self.progress_label.config(text="Không tìm thấy file trùng lặp")
-            self.summary_label.config(text="Không tìm thấy file trùng lặp")
+            self.progress_label.config(text=t('lbl_no_duplicates'))
+            self.summary_label.config(text=t('lbl_no_duplicates'))
     
     def scan_error(self, error_msg):
         """Handle scan error"""
@@ -333,8 +331,8 @@ class DuplicateFinderTab(ttk.Frame):
         self.scan_btn.config(state=tk.NORMAL)
         self.cancel_btn.config(state=tk.DISABLED)
         self.progress_bar.stop()
-        self.progress_label.config(text=f"Lỗi: {error_msg}")
-        messagebox.showerror("Lỗi Quét", f"Đã xảy ra lỗi: {error_msg}")
+        self.progress_label.config(text=f"{t('dlg_error')}: {error_msg}")
+        messagebox.showerror(t('dlg_error'), error_msg)
     
     def cancel_scan(self):
         """Cancel ongoing scan"""
@@ -343,7 +341,7 @@ class DuplicateFinderTab(ttk.Frame):
         self.scan_btn.config(state=tk.NORMAL)
         self.cancel_btn.config(state=tk.DISABLED)
         self.progress_bar.stop()
-        self.progress_label.config(text="Đã hủy quét")
+        self.progress_label.config(text=t('progress_cancelled'))
     
     def on_file_double_click(self, event):
         """Handle double-click on file to open in explorer"""
@@ -380,7 +378,7 @@ class DuplicateFinderTab(ttk.Frame):
         # Display summary
         total_files = sum(len(files) for files in self.duplicate_groups.values())
         self.summary_label.config(
-            text=f"Tìm thấy {len(self.duplicate_groups)} nhóm trùng lặp với {total_files} file tổng cộng"
+            text=t('lbl_found_groups', groups=len(self.duplicate_groups), files=total_files)
         )
         
         # Add all files to tree, group by group
@@ -398,14 +396,18 @@ class DuplicateFinderTab(ttk.Frame):
                                      values=(f"#{group_idx}", name, size_str, modified_str, file_info['path']),
                                      tags=(tag, 'unchecked'))
         
-        # Configure alternating colors for groups
-        self.file_tree.tag_configure('group0', background='#f0f0f0')
-        self.file_tree.tag_configure('group1', background='white')
+        # Configure alternating colors for groups (will be updated by theme)
+        # Default to dark theme colors since app starts with darkly theme
+        self.file_tree.tag_configure('group0', background='#1a252f', foreground='#FFFFFF')
+        self.file_tree.tag_configure('group1', background='#2b3e50', foreground='#FFFFFF')
+        self.file_tree.tag_configure('checked', background='#375a7f', foreground='#FFFFFF')
+        self.file_tree.tag_configure('unchecked', foreground='#FFFFFF')
     
     def on_tree_click(self, event):
         """Handle tree item click for checkbox"""
         region = self.file_tree.identify_region(event.x, event.y)
-        if region == "tree":
+        # Allow clicking anywhere on the row (tree, cell) to toggle checkbox
+        if region in ("tree", "cell"):
             item = self.file_tree.identify_row(event.y)
             if item:
                 self.toggle_checkbox(item)
@@ -431,7 +433,7 @@ class DuplicateFinderTab(ttk.Frame):
     def auto_select(self, strategy):
         """Auto-select files based on strategy (newest/oldest)"""
         if not self.duplicate_groups:
-            messagebox.showinfo("Không Có Nhóm", "Không có nhóm trùng lặp để chọn")
+            messagebox.showinfo(t('dlg_info'), t('msg_no_groups'))
             return
         
         # First, deselect all
@@ -482,13 +484,13 @@ class DuplicateFinderTab(ttk.Frame):
                 selected_files.append(filepath)
         
         if not selected_files:
-            messagebox.showinfo("Chưa Chọn File", "Vui lòng chọn file để xóa")
+            messagebox.showinfo(t('dlg_no_selection_title'), t('dlg_no_selection'))
             return
         
         # Confirm deletion
         result = messagebox.askyesno(
-            "Xác Nhận Xóa",
-            f"Chuyển {len(selected_files)} file vào Thùng Rác?"
+            t('dlg_confirm_delete'),
+            t('dlg_delete_count', count=len(selected_files))
         )
         
         if result:
@@ -514,25 +516,25 @@ class DuplicateFinderTab(ttk.Frame):
             # Build result message
             messages = []
             if success_count > 0:
-                messages.append(f"✓ Đã chuyển {success_count} file vào Thùng Rác")
+                messages.append(t('dlg_delete_success', count=success_count))
             
             if skipped:
-                messages.append(f"⚠ Bỏ qua {len(skipped)} file (đã bị xóa hoặc di chuyển)")
+                messages.append(t('dlg_delete_skipped', count=len(skipped)))
             
             if failed:
                 error_details = "\n".join([f"  • {os.path.basename(f)}: {e}" 
                                           for f, e in failed[:3]])
                 if len(failed) > 3:
-                    error_details += f"\n  • ... và {len(failed) - 3} lỗi khác"
-                messages.append(f"✗ Không thể xóa {len(failed)} file:\n{error_details}")
+                    error_details += f"\n  • ... and {len(failed) - 3} more"
+                messages.append(f"{t('dlg_delete_failed', count=len(failed))}:\n{error_details}")
             
             # Show appropriate message
             if failed and success_count == 0:
-                messagebox.showerror("Xóa Thất Bại", "\n\n".join(messages))
+                messagebox.showerror(t('dlg_failed'), "\n\n".join(messages))
             elif failed or skipped:
-                messagebox.showwarning("Thành Công Một Phần", "\n\n".join(messages))
+                messagebox.showwarning(t('dlg_partial_success'), "\n\n".join(messages))
             else:
-                messagebox.showinfo("Thành Công", "\n\n".join(messages))
+                messagebox.showinfo(t('dlg_success'), "\n\n".join(messages))
             
             # Refresh display
             self.display_all_duplicates()

@@ -24,6 +24,25 @@ class FileScanner:
         self.cancelled = False
         # Pre-compute lowercase excluded dirs for faster matching
         self._excluded_lower = {ex.lower() for ex in config.EXCLUDED_DIRS}
+        # Pre-compute excluded files (system critical)
+        self._excluded_files = {f.lower() for f in getattr(config, 'EXCLUDED_FILES', set())}
+        # Pre-compute excluded extensions (dangerous file types)
+        self._excluded_extensions = {e.lower() for e in getattr(config, 'EXCLUDED_EXTENSIONS', set())}
+    
+    def _is_file_safe(self, filename: str) -> bool:
+        """Check if file is safe to include (not a system critical file)"""
+        filename_lower = filename.lower()
+        
+        # Check exact filename match
+        if filename_lower in self._excluded_files:
+            return False
+        
+        # Check extension (e.g., .sys, .drv)
+        ext = os.path.splitext(filename_lower)[1]
+        if ext in self._excluded_extensions:
+            return False
+        
+        return True
     
     @staticmethod
     def get_all_drives() -> List[str]:
@@ -63,17 +82,13 @@ class FileScanner:
         Returns:
             True if safe to scan, False otherwise
         """
-        path_lower = path.lower()
-        
-        # Fast check: match any part of path against excluded dirs
-        path_parts = path_lower.replace('/', '\\').split('\\')
-        for part in path_parts:
-            if part in self._excluded_lower:
-                return False
-        
-        # Note: Removed os.listdir() check - let os.walk handle permissions
-        # This is much faster as we don't pre-read directory contents
-        return True
+        # Just check the folder name itself (fast)
+        folder_name = os.path.basename(path).lower()
+        return folder_name not in self._excluded_lower
+    
+    def _is_dirname_safe(self, dirname: str) -> bool:
+        """Quick check if a directory name is safe (for filtering in os.walk)"""
+        return dirname.lower() not in self._excluded_lower
     
     def scan_directory(self, root_path: str, 
                       min_size: int = 0, 
@@ -100,13 +115,16 @@ class FileScanner:
                 if self.cancelled:
                     break
                 
-                # Filter out unsafe directories
-                dirnames[:] = [d for d in dirnames 
-                             if self.is_safe_directory(os.path.join(dirpath, d))]
+                # Filter out unsafe directories (just check name, not full path)
+                dirnames[:] = [d for d in dirnames if self._is_dirname_safe(d)]
                 
                 for filename in filenames:
                     if self.cancelled:
                         break
+                    
+                    # Skip system-critical files (.sys, .drv, pagefile.sys, etc.)
+                    if not self._is_file_safe(filename):
+                        continue
                     
                     filepath = os.path.join(dirpath, filename)
                     
@@ -159,13 +177,16 @@ class FileScanner:
                 if self.cancelled:
                     break
                 
-                # Filter out unsafe directories (in-place modification)
-                dirnames[:] = [d for d in dirnames 
-                             if self.is_safe_directory(os.path.join(dirpath, d))]
+                # Filter out unsafe directories (just check name, not full path)
+                dirnames[:] = [d for d in dirnames if self._is_dirname_safe(d)]
                 
                 for filename in filenames:
                     if self.cancelled:
                         break
+                    
+                    # Skip system-critical files (.sys, .drv, pagefile.sys, etc.)
+                    if not self._is_file_safe(filename):
+                        continue
                     
                     filepath = os.path.join(dirpath, filename)
                     

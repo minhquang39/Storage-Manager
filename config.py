@@ -24,15 +24,73 @@ EXCLUDED_DIRS = {
     # === Temporary and Cache Folders ===
     'windows\\temp', 'temp',
     
-    # === Virtual Memory Files ===
-    'pagefile.sys', 'hiberfil.sys', 'swapfile.sys',
-    
     # === Development Folders (safe to exclude) ===
     'node_modules', '.git', '.svn', '.hg', '__pycache__',
     
     # === macOS/Linux System Folders ===
     'system', 'library', 'bin', 'sbin', 'usr', 'dev', 'proc', 'sys',
     'var', 'tmp', 'etc', 'opt', 'root'
+}
+
+# Excluded FILES for safety (system-critical files)
+# These files will NEVER be shown in results to prevent accidental deletion
+EXCLUDED_FILES = {
+    # === Windows Virtual Memory & Hibernate ===
+    'pagefile.sys',      # Virtual memory - XÓA = crash Windows
+    'hiberfil.sys',      # Hibernate file - XÓA = mất hibernate  
+    'swapfile.sys',      # Swap file cho Windows apps
+    
+    # === Windows Boot Files ===
+    'bootmgr',           # Boot manager - XÓA = không boot được
+    'bootmgr.efi',       # UEFI boot manager
+    'ntldr',             # NT Loader (legacy)
+    'ntdetect.com',      # Hardware detection (legacy)
+    'boot.ini',          # Boot config (legacy)
+    'bootsect.bak',      # Boot sector backup
+    
+    # === Windows Core System ===
+    'ntoskrnl.exe',      # Windows kernel
+    'hal.dll',           # Hardware Abstraction Layer
+    'winload.exe',       # Windows loader
+    'winload.efi',       # UEFI Windows loader
+    'winresume.exe',     # Resume from hibernate
+    
+    # === NTFS System Files ===
+    '$mft',              # Master File Table
+    '$mftmirr',          # MFT Mirror
+    '$logfile',          # NTFS Log
+    '$volume',           # Volume info
+    '$attrdef',          # Attribute definitions
+    '$bitmap',           # Cluster bitmap
+    '$boot',             # Boot sector
+    '$badclus',          # Bad clusters
+    '$secure',           # Security descriptors
+    '$upcase',           # Uppercase table
+    '$extend',           # Extended attributes
+    
+    # === Windows Registry Hives ===
+    'sam',               # Security Account Manager
+    'security',          # Security policies
+    'software',          # Software settings
+    'system',            # System settings
+    'default',           # Default user profile
+    'ntuser.dat',        # User registry
+    'usrclass.dat',      # User class registry
+    
+    # === System Metadata ===
+    'desktop.ini',       # Folder customization
+    'thumbs.db',         # Thumbnail cache
+    'iconcache.db',      # Icon cache
+    
+    # === Windows Installer ===
+    'msi.dll',           # Windows Installer
+    'msiexec.exe',       # Installer executable
+}
+
+# Excluded file EXTENSIONS (dangerous to delete)
+EXCLUDED_EXTENSIONS = {
+    '.sys',              # System drivers - QUAN TRỌNG
+    '.drv',              # Driver files
 }
 
 # Safe user folders that WILL be scanned (relative to Users folder)
